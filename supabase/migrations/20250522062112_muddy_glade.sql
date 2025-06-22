@@ -1,0 +1,2 @@
+-- This migration has been consolidated into 20250522061729_curly_poetry.sql
+-- Keeping this file empty to maintain migration history
