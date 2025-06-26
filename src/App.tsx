@@ -16,7 +16,16 @@ const ProtectedRoute: React.FC<{
   element: React.ReactElement;
   requiredRole?: string[];
 }> = ({ element, requiredRole = [] }) => {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
+  
+  // Show loading state while auth is being determined
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-500">Loading...</div>
+      </div>
+    );
+  }
   
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -36,14 +45,41 @@ const ProtectedRoute: React.FC<{
   return element;
 };
 
+// Public route wrapper (for auth pages)
+const PublicRoute: React.FC<{ element: React.ReactElement }> = ({ element }) => {
+  const { user, isAuthenticated, isLoading } = useAuth();
+  
+  // Show loading state while auth is being determined
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-500">Loading...</div>
+      </div>
+    );
+  }
+  
+  if (isAuthenticated && user) {
+    // Redirect authenticated users to their dashboard
+    if (user.role === 'admin') {
+      return <Navigate to="/admin" replace />;
+    } else if (user.role === 'client') {
+      return <Navigate to="/client" replace />;
+    } else if (user.role === 'intern') {
+      return <Navigate to="/intern" replace />;
+    }
+  }
+  
+  return element;
+};
+
 function App() {
   return (
     <AuthProvider>
       <Router>
         <Routes>
           {/* Auth routes */}
-          <Route path="/login" element={<AuthPage />} />
-          <Route path="/register" element={<AuthPage />} />
+          <Route path="/login" element={<PublicRoute element={<AuthPage />} />} />
+          <Route path="/register" element={<PublicRoute element={<AuthPage />} />} />
           
           {/* Client routes */}
           <Route 

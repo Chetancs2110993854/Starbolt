@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
   Home, 
@@ -81,6 +81,7 @@ interface DashboardLayoutProps {
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   
   if (!user) {
@@ -92,6 +93,17 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const getPageTitle = () => {
+    const path = location.pathname;
+    if (path.includes('/profile')) return 'Profile';
+    if (path.includes('/orders')) return 'Orders';
+    if (path.includes('/reviews')) return 'Reviews';
+    if (path.includes('/settings')) return 'Settings';
+    if (path.includes('/tasks')) return 'Review Tasks';
+    if (path.includes('/earnings')) return 'Earnings';
+    return `${user.role.charAt(0).toUpperCase() + user.role.slice(1)} Dashboard`;
   };
 
   return (
@@ -178,8 +190,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
               <Menu size={24} />
             </button>
             <div className="flex-1 px-4 lg:px-0">
-              <h1 className="text-xl font-semibold text-gray-800 capitalize">
-                {user.role} Dashboard
+              <h1 className="text-xl font-semibold text-gray-800">
+                {getPageTitle()}
               </h1>
             </div>
           </div>

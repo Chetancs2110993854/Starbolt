@@ -3,12 +3,13 @@ import { DashboardLayout } from '../../components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { Alert } from '../../components/ui/Alert';
 import { useAuth } from '../../contexts/AuthContext';
 import { ChevronLeft, Lock, Moon, Sun, LogOut, Bell, Shield, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export const ClientSettings: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, updatePassword } = useAuth();
   const navigate = useNavigate();
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [notifications, setNotifications] = useState({
@@ -24,19 +25,43 @@ export const ClientSettings: React.FC = () => {
     confirmPassword: '',
   });
 
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+
   const handleLogout = async () => {
     await logout();
     navigate('/login');
   };
 
-  const handlePasswordChange = () => {
-    // In real app, this would call API to change password
-    console.log('Password change requested');
-    setPasswordData({
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: '',
-    });
+  const handlePasswordChange = async () => {
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      setPasswordError('New passwords do not match');
+      return;
+    }
+
+    if (passwordData.newPassword.length < 6) {
+      setPasswordError('Password must be at least 6 characters long');
+      return;
+    }
+
+    setPasswordLoading(true);
+    setPasswordError(null);
+    setPasswordSuccess(false);
+
+    try {
+      await updatePassword(passwordData.currentPassword, passwordData.newPassword);
+      setPasswordSuccess(true);
+      setPasswordData({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+    } catch (error) {
+      setPasswordError(error instanceof Error ? error.message : 'Failed to update password');
+    } finally {
+      setPasswordLoading(false);
+    }
   };
 
   const handleNotificationChange = (key: string, value: boolean) => {
@@ -143,6 +168,18 @@ export const ClientSettings: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {passwordSuccess && (
+              <Alert variant="success" title="Password Updated">
+                Your password has been successfully updated.
+              </Alert>
+            )}
+            
+            {passwordError && (
+              <Alert variant="error" title="Password Update Failed">
+                {passwordError}
+              </Alert>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Input
                 type="password"
@@ -170,7 +207,12 @@ export const ClientSettings: React.FC = () => {
             </div>
             
             <div className="flex justify-end">
-              <Button variant="primary" onClick={handlePasswordChange}>
+              <Button 
+                variant="primary" 
+                onClick={handlePasswordChange}
+                isLoading={passwordLoading}
+                disabled={!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword}
+              >
                 Update Password
               </Button>
             </div>

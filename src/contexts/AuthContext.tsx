@@ -16,6 +16,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   error: string | null;
   clearError: () => void;
+  updatePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -77,6 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           await fetchUserProfile(session.user.id);
         } else {
           setUser(null);
+          localStorage.removeItem('starboost_user');
         }
       } catch (err) {
         console.error('Auth state change error:', err);
@@ -176,6 +178,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Supabase triggers `onAuthStateChange`, so profile will be handled there
   };
 
+  const updatePassword = async (currentPassword: string, newPassword: string) => {
+    setIsLoading(true);
+    clearError();
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (error) {
+        setError(error.message);
+        throw error;
+      }
+
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update password');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const logout = async () => {
     setIsLoading(true);
     const { error: signOutError } = await supabase.auth.signOut();
@@ -199,9 +224,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logout,
         error,
         clearError,
+        updatePassword,
       }}
     >
-      {!isLoading && children}
+      {children}
     </AuthContext.Provider>
   );
 };
