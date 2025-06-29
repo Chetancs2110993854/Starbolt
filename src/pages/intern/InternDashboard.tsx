@@ -2,82 +2,128 @@ import React, { useEffect, useState } from 'react';
 import { DashboardLayout } from '../../components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { ReviewTaskCard } from '../../components/intern/ReviewTaskCard';
-import { CheckCircle, DollarSign, Clock, Star, TrendingUp, Award, Target } from 'lucide-react';
-import { ReviewTask } from '../../types/review';
+import { ProgressBar } from '../../components/common/ProgressBar';
+import { StatusBadge } from '../../components/common/StatusBadge';
+import { CheckCircle, DollarSign, Clock, Star, TrendingUp, Award, Target, MapPin, ExternalLink, AlertCircle, Upload } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { Alert } from '../../components/ui/Alert';
+import { Input } from '../../components/ui/Input';
+
+interface OrderWithTasks {
+  id: string;
+  business_name: string;
+  business_url: string;
+  total_reviews: number;
+  completed_reviews: number;
+  status: string;
+  created_at: string;
+  tasks: {
+    id: string;
+    status: string;
+    commission: number;
+    guidelines: string[];
+    intern_id: string | null;
+  }[];
+  availableTasksCount: number;
+  myTasksCount: number;
+  totalCommission: number;
+}
+
+interface TaskSubmission {
+  taskId: string;
+  screenshot: File | null;
+  reviewContent: string;
+}
 
 export const InternDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [availableTasks, setAvailableTasks] = useState<ReviewTask[]>([]);
-  const [myTasks, setMyTasks] = useState<ReviewTask[]>([]);
+  const [orders, setOrders] = useState<OrderWithTasks[]>([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState<string | null>(null);
+  const [submissions, setSubmissions] = useState<Record<string, TaskSubmission>>({});
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
-      fetchTasks();
+      fetchOrdersWithTasks();
     }
   }, [user]);
 
-  const fetchTasks = async () => {
+  const fetchOrdersWithTasks = async () => {
     if (!user) return;
 
     try {
-      // Fetch available tasks (not assigned to anyone)
-      const { data: availableData, error: availableError } = await supabase
-        .from('review_tasks')
+      // Fetch orders with their associated tasks
+      const { data: ordersData, error: ordersError } = await supabase
+        .from('orders')
         .select(`
-          *,
-          orders!inner(business_name, business_url)
+          id,
+          business_name,
+          business_url,
+          total_reviews,
+          completed_reviews,
+          status,
+          created_at,
+          review_tasks (
+            id,
+            status,
+            commission,
+            guidelines,
+            intern_id
+          )
         `)
-        .is('intern_id', null)
-        .eq('status', 'pending')
-        .limit(6);
+        .in('status', ['pending', 'in-progress'])
+        .order('created_at', { ascending: false });
 
-      if (availableError) throw availableError;
+      if (ordersError) throw ordersError;
 
-      // Fetch my assigned tasks
-      const { data: myData, error: myError } = await supabase
-        .from('review_tasks')
-        .select(`
-          *,
-          orders!inner(business_name, business_url)
-        `)
-        .eq('intern_id', user.id)
-        .in('status', ['assigned', 'submitted']);
+      // Transform data to include task counts and commission info
+      const transformedOrders: OrderWithTasks[] = (ordersData || []).map(order => {
+        const tasks = order.review_tasks || [];
+        const availableTasksCount = tasks.filter(task => task.status === 'pending' && !task.intern_id).length;
+        const myTasksCount = tasks.filter(task => task.intern_id === user.id).length;
+        const totalCommission = tasks.reduce((sum, task) => sum + (task.commission || 0), 0);
 
-      if (myError) throw myError;
-
-      // Transform data to match ReviewTask interface
-      const transformTask = (task: any): ReviewTask => ({
-        id: task.id,
-        orderId: task.order_id,
-        businessUrl: task.orders.business_url,
-        businessName: task.orders.business_name,
-        internId: task.intern_id,
-        status: task.status,
-        assignedAt: task.assigned_at ? new Date(task.assigned_at) : undefined,
-        completedAt: task.completed_at ? new Date(task.completed_at) : undefined,
-        commission: task.commission,
-        guidelines: task.guidelines || [],
+        return {
+          ...order,
+          tasks,
+          availableTasksCount,
+          myTasksCount,
+          totalCommission
+        };
       });
 
-      setAvailableTasks((availableData || []).map(transformTask));
-      setMyTasks((myData || []).map(transformTask));
+      // Filter to show orders that have available tasks or tasks assigned to current user
+      const relevantOrders = transformedOrders.filter(order => 
+        order.availableTasksCount > 0 || order.myTasksCount > 0
+      );
+
+      setOrders(relevantOrders);
     } catch (error) {
-      console.error('Error fetching tasks:', error);
+      console.error('Error fetching orders:', error);
+      setError('Failed to load orders. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleClaimTask = async (taskId: string) => {
+  const handleClaimTask = async (orderId: string) => {
     if (!user) return;
 
     try {
+      setSubmitting(orderId);
+      
+      // Find an available task for this order
+      const order = orders.find(o => o.id === orderId);
+      const availableTask = order?.tasks.find(task => task.status === 'pending' && !task.intern_id);
+      
+      if (!availableTask) {
+        throw new Error('No available tasks for this order');
+      }
+
       const { error } = await supabase
         .from('review_tasks')
         .update({
@@ -85,46 +131,163 @@ export const InternDashboard: React.FC = () => {
           status: 'assigned',
           assigned_at: new Date().toISOString()
         })
-        .eq('id', taskId);
+        .eq('id', availableTask.id);
 
       if (error) throw error;
 
-      // Refresh tasks
-      await fetchTasks();
+      // Refresh data
+      await fetchOrdersWithTasks();
     } catch (error) {
       console.error('Error claiming task:', error);
-      alert('Failed to claim task. Please try again.');
+      setError(error instanceof Error ? error.message : 'Failed to claim task');
+    } finally {
+      setSubmitting(null);
     }
+  };
+
+  const handleSubmissionChange = (orderId: string, field: keyof TaskSubmission, value: any) => {
+    setSubmissions(prev => ({
+      ...prev,
+      [orderId]: {
+        ...prev[orderId],
+        [field]: value
+      }
+    }));
+  };
+
+  const handleSubmitProof = async (orderId: string) => {
+    if (!user) return;
+
+    const submission = submissions[orderId];
+    if (!submission?.screenshot || !submission?.reviewContent) {
+      setError('Please provide both screenshot and review content');
+      return;
+    }
+
+    try {
+      setSubmitting(orderId);
+      
+      // Find the user's assigned task for this order
+      const order = orders.find(o => o.id === orderId);
+      const myTask = order?.tasks.find(task => task.intern_id === user.id && task.status === 'assigned');
+      
+      if (!myTask) {
+        throw new Error('No assigned task found for this order');
+      }
+
+      // Upload screenshot
+      const fileName = `${myTask.id}/${Date.now()}-proof.png`;
+      const { error: uploadError } = await supabase.storage
+        .from('review-proofs')
+        .upload(fileName, submission.screenshot);
+      
+      if (uploadError) throw uploadError;
+      
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('review-proofs')
+        .getPublicUrl(fileName);
+      
+      // Create proof record
+      const { error: proofError } = await supabase
+        .from('review_proofs')
+        .insert({
+          task_id: myTask.id,
+          intern_id: user.id,
+          screenshot_url: publicUrl,
+          review_content: submission.reviewContent
+        });
+      
+      if (proofError) throw proofError;
+      
+      // Update task status
+      const { error: taskError } = await supabase
+        .from('review_tasks')
+        .update({ 
+          status: 'submitted',
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', myTask.id);
+      
+      if (taskError) throw taskError;
+
+      // Update order completed_reviews count
+      const { error: orderError } = await supabase
+        .from('orders')
+        .update({
+          completed_reviews: (order?.completed_reviews || 0) + 1,
+          status: (order?.completed_reviews || 0) + 1 >= (order?.total_reviews || 0) ? 'completed' : 'in-progress'
+        })
+        .eq('id', orderId);
+
+      if (orderError) throw orderError;
+      
+      // Clear submission data
+      setSubmissions(prev => {
+        const newSubmissions = { ...prev };
+        delete newSubmissions[orderId];
+        return newSubmissions;
+      });
+      
+      // Refresh data
+      await fetchOrdersWithTasks();
+    } catch (error) {
+      console.error('Error submitting proof:', error);
+      setError(error instanceof Error ? error.message : 'Failed to submit proof');
+    } finally {
+      setSubmitting(null);
+    }
+  };
+
+  const getMyEarnings = () => {
+    return orders.reduce((total, order) => {
+      const myCompletedTasks = order.tasks.filter(task => 
+        task.intern_id === user?.id && task.status === 'submitted'
+      );
+      return total + myCompletedTasks.reduce((sum, task) => sum + task.commission, 0);
+    }, 0);
+  };
+
+  const getMyActiveTasks = () => {
+    return orders.reduce((total, order) => {
+      return total + order.tasks.filter(task => 
+        task.intern_id === user?.id && task.status === 'assigned'
+      ).length;
+    }, 0);
+  };
+
+  const getTotalAvailableTasks = () => {
+    return orders.reduce((total, order) => total + order.availableTasksCount, 0);
   };
 
   const stats = [
     { 
-      label: 'Completed Reviews', 
-      value: '12', 
-      icon: <CheckCircle className="h-6 w-6 text-green-500" />,
-      color: 'bg-green-50',
-      change: '+3 this week'
+      label: 'Available Tasks', 
+      value: getTotalAvailableTasks().toString(), 
+      icon: <Star className="h-6 w-6 text-purple-500" />,
+      color: 'bg-purple-50',
+      change: 'Ready to claim'
     },
     { 
       label: 'Active Tasks', 
-      value: myTasks.length.toString(), 
+      value: getMyActiveTasks().toString(), 
       icon: <Clock className="h-6 w-6 text-yellow-500" />,
       color: 'bg-yellow-50',
       change: 'In progress'
     },
     { 
-      label: 'Total Earnings', 
-      value: '$120', 
-      icon: <DollarSign className="h-6 w-6 text-blue-500" />,
-      color: 'bg-blue-50',
-      change: '+$25 this week'
+      label: 'Pending Earnings', 
+      value: `$${getMyEarnings().toFixed(2)}`, 
+      icon: <DollarSign className="h-6 w-6 text-green-500" />,
+      color: 'bg-green-50',
+      change: 'Awaiting approval'
     },
     { 
-      label: 'Available Tasks', 
-      value: availableTasks.length.toString(), 
-      icon: <Star className="h-6 w-6 text-purple-500" />,
-      color: 'bg-purple-50',
-      change: 'Ready to claim'
+      label: 'Success Rate', 
+      value: '98%', 
+      icon: <TrendingUp className="h-6 w-6 text-blue-500" />,
+      color: 'bg-blue-50',
+      change: 'Excellent performance'
     },
   ];
 
@@ -132,7 +295,7 @@ export const InternDashboard: React.FC = () => {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64">
-          <div className="text-gray-500">Loading dashboard...</div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
         </div>
       </DashboardLayout>
     );
@@ -141,37 +304,46 @@ export const InternDashboard: React.FC = () => {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Welcome Section */}
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg p-6 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold">Welcome back, {user?.name}!</h1>
-              <p className="text-blue-100 mt-1">Ready to earn some money by writing reviews?</p>
-            </div>
-            <div className="hidden md:flex items-center space-x-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold">4.9</div>
-                <div className="text-sm text-blue-100">Rating</div>
+        {/* Welcome Section with Earnings Focus */}
+        <div className="bg-gradient-to-r from-green-600 via-blue-600 to-purple-600 rounded-xl p-8 text-white relative overflow-hidden">
+          <div className="absolute inset-0 bg-black opacity-10"></div>
+          <div className="relative z-10">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold mb-2">💰 Ready to Earn, {user?.name?.split(' ')[0]}?</h1>
+                <p className="text-green-100 text-lg">Turn your reviews into real money • Quick tasks • Instant payouts</p>
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold">98%</div>
-                <div className="text-sm text-blue-100">Success Rate</div>
+              <div className="hidden md:flex items-center space-x-6">
+                <div className="text-center bg-white bg-opacity-20 rounded-lg p-4">
+                  <div className="text-2xl font-bold">${getMyEarnings().toFixed(2)}</div>
+                  <div className="text-sm text-green-100">Pending</div>
+                </div>
+                <div className="text-center bg-white bg-opacity-20 rounded-lg p-4">
+                  <div className="text-2xl font-bold">{getTotalAvailableTasks()}</div>
+                  <div className="text-sm text-green-100">Available</div>
+                </div>
               </div>
             </div>
           </div>
         </div>
+
+        {error && (
+          <Alert variant="error" title="Error" onClose={() => setError(null)}>
+            {error}
+          </Alert>
+        )}
         
         {/* Stats Grid */}
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {stats.map((stat, index) => (
-            <Card key={index} className="hover:shadow-md transition-shadow">
+            <Card key={index} className="hover:shadow-lg transition-all duration-200 border-l-4 border-l-blue-500">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div className={`p-3 rounded-full ${stat.color}`}>
                     {stat.icon}
                   </div>
                   <div className="text-right">
-                    <p className="text-2xl font-semibold text-gray-900">{stat.value}</p>
+                    <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
                     <p className="text-sm font-medium text-gray-500">{stat.label}</p>
                     <p className="text-xs text-gray-400 mt-1">{stat.change}</p>
                   </div>
@@ -183,141 +355,227 @@ export const InternDashboard: React.FC = () => {
 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+          <Card className="bg-gradient-to-br from-green-50 to-emerald-100 border-green-200 hover:shadow-lg transition-all">
             <CardContent className="p-6 text-center">
-              <Target className="h-12 w-12 text-green-600 mx-auto mb-3" />
-              <h3 className="text-lg font-semibold text-green-800 mb-2">Claim New Tasks</h3>
-              <p className="text-sm text-green-600 mb-4">Browse and claim available review tasks</p>
-              <Button variant="primary" size="sm" onClick={() => navigate('/intern/tasks')}>
-                View Tasks
-              </Button>
+              <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <DollarSign className="h-8 w-8 text-white" />
+              </div>
+              <h3 className="text-lg font-bold text-green-800 mb-2">Start Earning Now</h3>
+              <p className="text-sm text-green-600 mb-4">Claim tasks and start making money immediately</p>
+              <div className="text-2xl font-bold text-green-700 mb-2">${getTotalAvailableTasks() * 5} potential</div>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+          <Card className="bg-gradient-to-br from-blue-50 to-indigo-100 border-blue-200 hover:shadow-lg transition-all">
             <CardContent className="p-6 text-center">
-              <DollarSign className="h-12 w-12 text-blue-600 mx-auto mb-3" />
-              <h3 className="text-lg font-semibold text-blue-800 mb-2">Track Earnings</h3>
-              <p className="text-sm text-blue-600 mb-4">Monitor your commission and payouts</p>
-              <Button variant="outline" size="sm" onClick={() => navigate('/intern/earnings')}>
-                View Earnings
-              </Button>
+              <div className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Target className="h-8 w-8 text-white" />
+              </div>
+              <h3 className="text-lg font-bold text-blue-800 mb-2">Track Progress</h3>
+              <p className="text-sm text-blue-600 mb-4">Monitor your active tasks and earnings</p>
+              <div className="text-2xl font-bold text-blue-700 mb-2">{getMyActiveTasks()} active</div>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+          <Card className="bg-gradient-to-br from-purple-50 to-violet-100 border-purple-200 hover:shadow-lg transition-all">
             <CardContent className="p-6 text-center">
-              <Award className="h-12 w-12 text-purple-600 mx-auto mb-3" />
-              <h3 className="text-lg font-semibold text-purple-800 mb-2">Performance</h3>
-              <p className="text-sm text-purple-600 mb-4">View your review quality metrics</p>
-              <Button variant="outline" size="sm">
-                View Stats
-              </Button>
+              <div className="w-16 h-16 bg-purple-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Award className="h-8 w-8 text-white" />
+              </div>
+              <h3 className="text-lg font-bold text-purple-800 mb-2">Quality Bonus</h3>
+              <p className="text-sm text-purple-600 mb-4">Earn extra for high-quality reviews</p>
+              <div className="text-2xl font-bold text-purple-700 mb-2">+20% bonus</div>
             </CardContent>
           </Card>
         </div>
         
-        {/* My Current Tasks */}
+        {/* Available Orders */}
         <div>
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-medium text-gray-900">My Active Tasks</h2>
-            {myTasks.length > 2 && (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => navigate('/intern/tasks')}
-              >
-                View All
-              </Button>
-            )}
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold text-gray-900">💼 Available Orders</h2>
+            <div className="text-sm text-gray-500">
+              {orders.length} orders • {getTotalAvailableTasks()} tasks available
+            </div>
           </div>
           
-          {myTasks.length > 0 ? (
-            <div className="grid gap-6 sm:grid-cols-2">
-              {myTasks.slice(0, 2).map((task) => (
-                <ReviewTaskCard 
-                  key={task.id} 
-                  task={task}
-                  onView={() => navigate('/intern/tasks')}
-                />
-              ))}
+          {orders.length > 0 ? (
+            <div className="grid gap-6">
+              {orders.map((order) => {
+                const myTask = order.tasks.find(task => task.intern_id === user?.id && task.status === 'assigned');
+                const hasAvailableTasks = order.availableTasksCount > 0;
+                const submission = submissions[order.id];
+                
+                return (
+                  <Card key={order.id} className="hover:shadow-lg transition-all duration-200 border-l-4 border-l-green-500">
+                    <CardHeader className="pb-4">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <CardTitle className="text-xl text-gray-900 mb-2">{order.business_name}</CardTitle>
+                          <div className="flex items-center text-sm text-gray-500 mb-3">
+                            <MapPin size={14} className="mr-1" />
+                            <a 
+                              href={order.business_url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:underline"
+                            >
+                              View on Google Maps
+                            </a>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                            <div className="text-center p-3 bg-blue-50 rounded-lg">
+                              <div className="text-lg font-bold text-blue-600">{order.availableTasksCount}</div>
+                              <div className="text-xs text-blue-500">Available</div>
+                            </div>
+                            <div className="text-center p-3 bg-green-50 rounded-lg">
+                              <div className="text-lg font-bold text-green-600">${(order.totalCommission / order.total_reviews).toFixed(2)}</div>
+                              <div className="text-xs text-green-500">Per Review</div>
+                            </div>
+                            <div className="text-center p-3 bg-purple-50 rounded-lg">
+                              <div className="text-lg font-bold text-purple-600">{order.myTasksCount}</div>
+                              <div className="text-xs text-purple-500">My Tasks</div>
+                            </div>
+                            <div className="text-center p-3 bg-yellow-50 rounded-lg">
+                              <div className="text-lg font-bold text-yellow-600">${(order.myTasksCount * (order.totalCommission / order.total_reviews)).toFixed(2)}</div>
+                              <div className="text-xs text-yellow-500">My Earnings</div>
+                            </div>
+                          </div>
+                        </div>
+                        <StatusBadge status={order.status} />
+                      </div>
+                    </CardHeader>
+                    
+                    <CardContent>
+                      <div className="space-y-4">
+                        <ProgressBar
+                          value={order.completed_reviews}
+                          max={order.total_reviews}
+                          showValue
+                          label="Overall Progress"
+                          variant="primary"
+                        />
+                        
+                        {myTask && (
+                          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                            <h4 className="font-medium text-yellow-800 mb-3 flex items-center">
+                              <Clock className="h-4 w-4 mr-2" />
+                              You have an active task for this order
+                            </h4>
+                            
+                            <div className="space-y-4">
+                              <div>
+                                <h5 className="text-sm font-medium text-gray-700 mb-2">Guidelines:</h5>
+                                <ul className="text-sm text-gray-600 space-y-1 list-disc pl-4">
+                                  {myTask.guidelines.map((guideline, index) => (
+                                    <li key={index}>{guideline}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                              
+                              <div className="grid md:grid-cols-2 gap-4">
+                                <Input
+                                  type="file"
+                                  accept="image/*"
+                                  label="Upload Review Screenshot"
+                                  onChange={(e) => handleSubmissionChange(order.id, 'screenshot', e.target.files?.[0] || null)}
+                                  fullWidth
+                                />
+                                
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Review Content
+                                  </label>
+                                  <textarea
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                                    rows={3}
+                                    placeholder="Paste your review text here..."
+                                    value={submission?.reviewContent || ''}
+                                    onChange={(e) => handleSubmissionChange(order.id, 'reviewContent', e.target.value)}
+                                  />
+                                </div>
+                              </div>
+                              
+                              <Button 
+                                variant="primary" 
+                                onClick={() => handleSubmitProof(order.id)}
+                                isLoading={submitting === order.id}
+                                leftIcon={<Upload size={16} />}
+                                disabled={!submission?.screenshot || !submission?.reviewContent}
+                                fullWidth
+                              >
+                                Submit Proof & Earn ${myTask.commission.toFixed(2)}
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                        
+                        <div className="flex justify-between items-center pt-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            rightIcon={<ExternalLink size={16} />}
+                            onClick={() => window.open(order.business_url, '_blank', 'noopener,noreferrer')}
+                          >
+                            Visit Business
+                          </Button>
+                          
+                          {hasAvailableTasks && !myTask && (
+                            <Button 
+                              variant="primary" 
+                              onClick={() => handleClaimTask(order.id)}
+                              isLoading={submitting === order.id}
+                              leftIcon={<DollarSign size={16} />}
+                            >
+                              Claim Task • Earn ${(order.totalCommission / order.total_reviews).toFixed(2)}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           ) : (
             <Card className="bg-gray-50 border-gray-200">
-              <CardContent className="p-6 text-center">
-                <Clock className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                <p className="text-gray-600 font-medium">No active tasks</p>
-                <p className="text-gray-500 text-sm mt-1">Claim a task from the available list below to start earning.</p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-        
-        {/* Available Tasks */}
-        <div>
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-medium text-gray-900">Available Tasks</h2>
-            {availableTasks.length > 4 && (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => navigate('/intern/tasks')}
-              >
-                View All
-              </Button>
-            )}
-          </div>
-          
-          {availableTasks.length > 0 ? (
-            <div className="grid gap-6 sm:grid-cols-2">
-              {availableTasks.slice(0, 4).map((task) => (
-                <ReviewTaskCard 
-                  key={task.id} 
-                  task={task}
-                  onClaim={() => handleClaimTask(task.id)}
-                  onView={() => navigate('/intern/tasks')}
-                />
-              ))}
-            </div>
-          ) : (
-            <Card className="bg-gray-50 border-gray-200">
-              <CardContent className="p-6 text-center">
-                <Star className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                <p className="text-gray-600 font-medium">No tasks available</p>
-                <p className="text-gray-500 text-sm mt-1">Check back soon for new review opportunities.</p>
+              <CardContent className="p-12 text-center">
+                <Star className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-xl font-medium text-gray-600 mb-2">No Orders Available</h3>
+                <p className="text-gray-500">Check back soon for new earning opportunities!</p>
               </CardContent>
             </Card>
           )}
         </div>
         
         {/* Guidelines */}
-        <Card className="bg-blue-50 border-blue-100">
+        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
           <CardHeader>
             <CardTitle className="text-blue-800 flex items-center">
               <Star className="mr-2 h-5 w-5" />
-              Reviewer Guidelines
+              💡 Pro Tips for Maximum Earnings
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid md:grid-cols-2 gap-4">
-              <ul className="space-y-2 text-blue-700">
+            <div className="grid md:grid-cols-2 gap-6">
+              <ul className="space-y-3 text-blue-700">
                 <li className="flex items-start">
-                  <CheckCircle className="h-5 w-5 text-blue-500 flex-shrink-0 mr-2 mt-0.5" />
-                  <span>Always visit the business before writing a review</span>
+                  <CheckCircle className="h-5 w-5 text-blue-500 flex-shrink-0 mr-3 mt-0.5" />
+                  <span><strong>Visit first:</strong> Always visit the business before writing your review</span>
                 </li>
                 <li className="flex items-start">
-                  <CheckCircle className="h-5 w-5 text-blue-500 flex-shrink-0 mr-2 mt-0.5" />
-                  <span>Write detailed, authentic reviews about your experience</span>
+                  <CheckCircle className="h-5 w-5 text-blue-500 flex-shrink-0 mr-3 mt-0.5" />
+                  <span><strong>Be specific:</strong> Mention details about your experience, staff, atmosphere</span>
                 </li>
               </ul>
-              <ul className="space-y-2 text-blue-700">
+              <ul className="space-y-3 text-blue-700">
                 <li className="flex items-start">
-                  <CheckCircle className="h-5 w-5 text-blue-500 flex-shrink-0 mr-2 mt-0.5" />
-                  <span>Include specific details about what you liked</span>
+                  <CheckCircle className="h-5 w-5 text-blue-500 flex-shrink-0 mr-3 mt-0.5" />
+                  <span><strong>Quality screenshots:</strong> Clear, full-screen captures get approved faster</span>
                 </li>
                 <li className="flex items-start">
-                  <CheckCircle className="h-5 w-5 text-blue-500 flex-shrink-0 mr-2 mt-0.5" />
-                  <span>Submit clear screenshots as proof of your review</span>
+                  <CheckCircle className="h-5 w-5 text-blue-500 flex-shrink-0 mr-3 mt-0.5" />
+                  <span><strong>Quick turnaround:</strong> Submit within 24 hours for bonus consideration</span>
                 </li>
               </ul>
             </div>

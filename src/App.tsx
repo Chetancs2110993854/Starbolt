@@ -9,6 +9,8 @@ import { ClientReviews } from './pages/client/ClientReviews';
 import { ClientSettings } from './pages/client/ClientSettings';
 import { NewOrderPage } from './pages/client/NewOrderPage';
 import { InternDashboard } from './pages/intern/InternDashboard';
+import { InternTasksPage } from './pages/intern/InternTasksPage';
+import { InternEarningsPage } from './pages/intern/InternEarningsPage';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
 
 // Protected route wrapper
@@ -22,7 +24,7 @@ const ProtectedRoute: React.FC<{
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-500">Loading...</div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
   }
@@ -53,7 +55,7 @@ const PublicRoute: React.FC<{ element: React.ReactElement }> = ({ element }) => 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-500">Loading...</div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
   }
@@ -111,6 +113,14 @@ function App() {
           <Route 
             path="/intern" 
             element={<ProtectedRoute element={<InternDashboard />} requiredRole={['intern']} />} 
+          />
+          <Route 
+            path="/intern/tasks" 
+            element={<ProtectedRoute element={<InternTasksPage />} requiredRole={['intern']} />} 
+          />
+          <Route 
+            path="/intern/earnings" 
+            element={<ProtectedRoute element={<InternEarningsPage />} requiredRole={['intern']} />} 
           />
           
           {/* Admin routes */}
