@@ -5,7 +5,7 @@ import { Button } from '../../components/ui/Button';
 import { OrderStatusCard } from '../../components/client/OrderStatusCard';
 import { ClientProfileCard } from '../../components/client/ClientProfileCard';
 import { DashboardSection } from '../../components/client/DashboardSection';
-import { BarChart, Star, TrendingUp, DollarSign, PlusCircle, ShoppingBag, MessageSquare, Settings, Target, Award, Zap } from 'lucide-react';
+import { BarChart, Star, TrendingUp, DollarSign, PlusCircle, ShoppingBag, MessageSquare, Settings, Target, Award, Zap, CreditCard, ArrowUpRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -84,28 +84,28 @@ export const ClientDashboard: React.FC = () => {
       label: 'Active Orders', 
       value: activeOrders.toString(), 
       icon: <BarChart className="h-6 w-6 text-blue-600" />,
-      color: 'bg-blue-50',
+      color: 'from-blue-500 to-blue-600',
       change: activeOrders > 0 ? 'In progress' : 'No active orders'
     },
     { 
       label: 'Total Reviews', 
       value: totalReviews.toString(), 
       icon: <Star className="h-6 w-6 text-yellow-500" />,
-      color: 'bg-yellow-50',
+      color: 'from-yellow-500 to-orange-500',
       change: `${orders.reduce((sum, order) => sum + order.total_reviews, 0)} ordered`
     },
     { 
       label: 'Completed Orders', 
       value: completedOrders.toString(), 
       icon: <Award className="h-6 w-6 text-green-500" />,
-      color: 'bg-green-50',
+      color: 'from-green-500 to-emerald-500',
       change: completedOrders > 0 ? 'Success!' : 'Getting started'
     },
     { 
       label: 'Total Investment', 
       value: `$${totalSpent}`, 
       icon: <DollarSign className="h-6 w-6 text-purple-500" />,
-      color: 'bg-purple-50',
+      color: 'from-purple-500 to-indigo-500',
       change: 'Growing your business'
     },
   ];
@@ -114,21 +114,33 @@ export const ClientDashboard: React.FC = () => {
     <DashboardLayout>
       <div className="space-y-8">
         {/* Welcome Section */}
-        <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 rounded-xl p-8 text-white relative overflow-hidden">
+        <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 rounded-2xl p-8 text-white relative overflow-hidden shadow-2xl">
           <div className="absolute inset-0 bg-black opacity-10"></div>
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full -mr-32 -mt-32"></div>
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-white opacity-5 rounded-full -ml-24 -mb-24"></div>
           <div className="relative z-10">
             <div className="flex justify-between items-center">
               <div>
-                <h1 className="text-3xl font-bold mb-2">Welcome back, {user?.name?.split(' ')[0]}! 🚀</h1>
-                <p className="text-blue-100 text-lg">Ready to boost your business with authentic reviews?</p>
+                <h1 className="text-4xl font-bold mb-3">Welcome back, {user?.name?.split(' ')[0]}! 🚀</h1>
+                <p className="text-blue-100 text-xl">Ready to boost your business with authentic reviews?</p>
+                <div className="flex items-center mt-4 space-x-6">
+                  <div className="flex items-center">
+                    <TrendingUp className="h-5 w-5 mr-2" />
+                    <span className="text-sm">+25% growth this month</span>
+                  </div>
+                  <div className="flex items-center">
+                    <Star className="h-5 w-5 mr-2" />
+                    <span className="text-sm">4.9 avg rating</span>
+                  </div>
+                </div>
               </div>
               <Button 
                 variant="secondary" 
                 leftIcon={<PlusCircle size={18} />}
                 onClick={() => navigate('/client/orders/new')}
-                className="bg-white text-blue-600 hover:bg-blue-50 font-semibold"
+                className="bg-white text-blue-600 hover:bg-blue-50 font-semibold shadow-lg"
               >
-                New Order
+                New Campaign
               </Button>
             </div>
           </div>
@@ -140,14 +152,14 @@ export const ClientDashboard: React.FC = () => {
         {/* Stats Grid */}
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {stats.map((stat, index) => (
-            <Card key={index} className="hover:shadow-lg transition-all duration-200 border-l-4 border-l-blue-500">
+            <Card key={index} className="hover:shadow-xl transition-all duration-300 border-0 shadow-lg">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
-                  <div className={`p-3 rounded-full ${stat.color}`}>
+                  <div className={`p-4 rounded-xl bg-gradient-to-r ${stat.color} shadow-lg`}>
                     {stat.icon}
                   </div>
                   <div className="text-right">
-                    <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+                    <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
                     <p className="text-sm font-medium text-gray-500">{stat.label}</p>
                     <p className="text-xs text-gray-400 mt-1">{stat.change}</p>
                   </div>
@@ -158,37 +170,48 @@ export const ClientDashboard: React.FC = () => {
         </div>
         
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="bg-gradient-to-br from-green-50 to-emerald-100 border-green-200 hover:shadow-lg transition-all cursor-pointer" onClick={() => navigate('/client/orders/new')}>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <Card className="bg-gradient-to-br from-green-50 to-emerald-100 border-green-200 hover:shadow-xl transition-all cursor-pointer group" onClick={() => navigate('/client/orders/new')}>
             <CardContent className="p-6 text-center">
-              <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform shadow-lg">
                 <Target className="h-8 w-8 text-white" />
               </div>
-              <h3 className="text-lg font-bold text-green-800 mb-2">Start New Campaign</h3>
-              <p className="text-sm text-green-600 mb-4">Launch a new review campaign for your business</p>
+              <h3 className="text-lg font-bold text-green-800 mb-2">Start Campaign</h3>
+              <p className="text-sm text-green-600 mb-4">Launch a new review campaign</p>
               <div className="text-sm font-medium text-green-700">From $99</div>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-blue-50 to-indigo-100 border-blue-200 hover:shadow-lg transition-all cursor-pointer" onClick={() => navigate('/client/orders')}>
+          <Card className="bg-gradient-to-br from-blue-50 to-indigo-100 border-blue-200 hover:shadow-xl transition-all cursor-pointer group" onClick={() => navigate('/client/orders')}>
             <CardContent className="p-6 text-center">
-              <div className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform shadow-lg">
                 <BarChart className="h-8 w-8 text-white" />
               </div>
               <h3 className="text-lg font-bold text-blue-800 mb-2">Track Progress</h3>
-              <p className="text-sm text-blue-600 mb-4">Monitor your active campaigns and results</p>
+              <p className="text-sm text-blue-600 mb-4">Monitor active campaigns</p>
               <div className="text-sm font-medium text-blue-700">{activeOrders} active</div>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-purple-50 to-violet-100 border-purple-200 hover:shadow-lg transition-all cursor-pointer" onClick={() => navigate('/client/reviews')}>
+          <Card className="bg-gradient-to-br from-purple-50 to-violet-100 border-purple-200 hover:shadow-xl transition-all cursor-pointer group" onClick={() => navigate('/client/reviews')}>
             <CardContent className="p-6 text-center">
-              <div className="w-16 h-16 bg-purple-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-violet-500 rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform shadow-lg">
                 <Star className="h-8 w-8 text-white" />
               </div>
               <h3 className="text-lg font-bold text-purple-800 mb-2">View Reviews</h3>
-              <p className="text-sm text-purple-600 mb-4">See all your collected reviews and ratings</p>
+              <p className="text-sm text-purple-600 mb-4">See collected reviews</p>
               <div className="text-sm font-medium text-purple-700">{totalReviews} reviews</div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-orange-50 to-red-100 border-orange-200 hover:shadow-xl transition-all cursor-pointer group" onClick={() => navigate('/client/payments')}>
+            <CardContent className="p-6 text-center">
+              <div className="w-16 h-16 bg-gradient-to-r from-orange-500 to-red-500 rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform shadow-lg">
+                <CreditCard className="h-8 w-8 text-white" />
+              </div>
+              <h3 className="text-lg font-bold text-orange-800 mb-2">Payments</h3>
+              <p className="text-sm text-orange-600 mb-4">Manage billing & payments</p>
+              <div className="text-sm font-medium text-orange-700">${totalSpent} spent</div>
             </CardContent>
           </Card>
         </div>
@@ -236,6 +259,7 @@ export const ClientDashboard: React.FC = () => {
             <Button 
               variant="outline" 
               size="sm" 
+              rightIcon={<ArrowUpRight size={16} />}
               onClick={() => navigate('/client/orders')}
             >
               View All Orders
@@ -254,10 +278,10 @@ export const ClientDashboard: React.FC = () => {
               ))}
             </div>
           ) : (
-            <Card className="bg-gradient-to-br from-gray-50 to-blue-50 border-gray-200">
+            <Card className="bg-gradient-to-br from-gray-50 to-blue-50 border-gray-200 shadow-lg">
               <CardContent className="p-12 text-center">
-                <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <Zap className="h-10 w-10 text-blue-600" />
+                <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+                  <Zap className="h-10 w-10 text-white" />
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">Ready to get started?</h3>
                 <p className="text-gray-600 mb-6">Launch your first review campaign and watch your business grow!</p>
@@ -265,9 +289,9 @@ export const ClientDashboard: React.FC = () => {
                   variant="primary"
                   leftIcon={<PlusCircle size={16} />}
                   onClick={() => navigate('/client/orders/new')}
-                  className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                  className="shadow-lg"
                 >
-                  Create Your First Order
+                  Create Your First Campaign
                 </Button>
               </CardContent>
             </Card>
@@ -275,7 +299,7 @@ export const ClientDashboard: React.FC = () => {
         </div>
         
         {/* Success Tips */}
-        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 shadow-lg">
           <CardHeader>
             <CardTitle className="text-blue-800 flex items-center">
               <Star className="mr-2 h-5 w-5" />

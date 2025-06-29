@@ -14,7 +14,8 @@ import {
   DollarSign, 
   Settings, 
   BarChart,
-  MessageSquare
+  MessageSquare,
+  CreditCard
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 
@@ -29,10 +30,10 @@ const SidebarLink: React.FC<SidebarLinkProps> = ({ to, icon, label }) => {
     <NavLink
       to={to}
       className={({ isActive }) => 
-        `flex items-center p-3 rounded-lg text-sm font-medium transition-all duration-200 ${
+        `flex items-center p-3 rounded-xl text-sm font-medium transition-all duration-200 ${
           isActive 
-            ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-500' 
-            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg transform scale-105' 
+            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 hover:transform hover:scale-105'
         }`
       }
     >
@@ -60,6 +61,7 @@ const getNavLinks = (role: string) => {
         { to: '/client/profile', icon: <User size={18} />, label: 'Profile' },
         { to: '/client/orders', icon: <ShoppingBag size={18} />, label: 'Orders' },
         { to: '/client/reviews', icon: <MessageSquare size={18} />, label: 'Reviews' },
+        { to: '/client/payments', icon: <CreditCard size={18} />, label: 'Payments' },
         { to: '/client/settings', icon: <Settings size={18} />, label: 'Settings' },
       ];
     case 'intern':
@@ -106,6 +108,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
     if (path.includes('/orders/new')) return 'New Order';
     if (path.includes('/orders')) return 'Orders';
     if (path.includes('/reviews')) return 'Reviews';
+    if (path.includes('/payments')) return 'Payments';
     if (path.includes('/settings')) return 'Settings';
     if (path.includes('/tasks')) return 'Review Tasks';
     if (path.includes('/earnings')) return 'Earnings';
@@ -114,7 +117,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
   };
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-gradient-to-br from-gray-50 to-blue-50">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
@@ -125,16 +128,18 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
 
       {/* Sidebar */}
       <div
-        className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-white shadow-xl transition duration-300 lg:translate-x-0 lg:static lg:z-auto ${
+        className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-white shadow-2xl transition duration-300 lg:translate-x-0 lg:static lg:z-auto ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <div className="flex h-full flex-col overflow-y-auto">
           {/* Sidebar header */}
-          <div className="flex h-16 items-center justify-between px-6 border-b border-gray-200 bg-gradient-to-r from-blue-600 to-purple-600">
+          <div className="flex h-16 items-center justify-between px-6 border-b border-gray-200 bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600">
             <div className="flex items-center">
-              <Star className="h-8 w-8 text-white" />
-              <span className="ml-2 text-xl font-bold text-white tracking-tight">
+              <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mr-3">
+                <Star className="h-5 w-5 text-blue-600" />
+              </div>
+              <span className="text-xl font-bold text-white tracking-tight">
                 StarBoost
               </span>
             </div>
@@ -150,13 +155,13 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
           <div className="border-b border-gray-200 py-6 px-6 bg-gradient-to-r from-blue-50 to-purple-50">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <div className="h-12 w-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center">
+                <div className="h-12 w-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center shadow-lg">
                   <User className="h-6 w-6 text-white" />
                 </div>
               </div>
               <div className="ml-4">
                 <p className="text-sm font-semibold text-gray-900">{user.name}</p>
-                <p className="text-xs text-gray-500 capitalize bg-gray-100 px-2 py-1 rounded-full inline-block">
+                <p className="text-xs text-gray-500 capitalize bg-gradient-to-r from-blue-100 to-purple-100 px-3 py-1 rounded-full inline-block mt-1">
                   {user.role}
                 </p>
               </div>
@@ -164,7 +169,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
           </div>
           
           {/* Navigation links */}
-          <nav className="mt-6 flex-1 px-4 space-y-2">
+          <nav className="mt-6 flex-1 px-4 space-y-3">
             {navLinks.map((link) => (
               <SidebarLink
                 key={link.to}
@@ -226,7 +231,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
         </header>
         
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-gray-50">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-gradient-to-br from-gray-50 to-blue-50">
           {children}
         </main>
       </div>

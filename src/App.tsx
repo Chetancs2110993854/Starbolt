@@ -6,6 +6,7 @@ import { ClientDashboard } from './pages/client/ClientDashboard';
 import { ClientProfile } from './pages/client/ClientProfile';
 import { ClientOrders } from './pages/client/ClientOrders';
 import { ClientReviews } from './pages/client/ClientReviews';
+import { ClientPayments } from './pages/client/ClientPayments';
 import { ClientSettings } from './pages/client/ClientSettings';
 import { NewOrderPage } from './pages/client/NewOrderPage';
 import { InternDashboard } from './pages/intern/InternDashboard';
@@ -23,7 +24,7 @@ const ProtectedRoute: React.FC<{
   // Show loading state while auth is being determined
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
@@ -54,7 +55,7 @@ const PublicRoute: React.FC<{ element: React.ReactElement }> = ({ element }) => 
   // Show loading state while auth is being determined
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
@@ -99,6 +100,10 @@ function App() {
           <Route 
             path="/client/reviews" 
             element={<ProtectedRoute element={<ClientReviews />} requiredRole={['client']} />} 
+          />
+          <Route 
+            path="/client/payments" 
+            element={<ProtectedRoute element={<ClientPayments />} requiredRole={['client']} />} 
           />
           <Route 
             path="/client/settings" 

@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Ca
 import { Button } from '../../components/ui/Button';
 import { ProgressBar } from '../../components/common/ProgressBar';
 import { StatusBadge } from '../../components/common/StatusBadge';
-import { CheckCircle, DollarSign, Clock, Star, TrendingUp, Award, Target, MapPin, ExternalLink, AlertCircle, Upload } from 'lucide-react';
+import { CheckCircle, DollarSign, Clock, Star, TrendingUp, Award, Target, MapPin, ExternalLink, AlertCircle, Upload, Zap, Trophy, Coins } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -56,7 +56,6 @@ export const InternDashboard: React.FC = () => {
     if (!user) return;
 
     try {
-      // Fetch orders with their associated tasks
       const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
         .select(`
@@ -80,7 +79,6 @@ export const InternDashboard: React.FC = () => {
 
       if (ordersError) throw ordersError;
 
-      // Transform data to include task counts and commission info
       const transformedOrders: OrderWithTasks[] = (ordersData || []).map(order => {
         const tasks = order.review_tasks || [];
         const availableTasksCount = tasks.filter(task => task.status === 'pending' && !task.intern_id).length;
@@ -96,7 +94,6 @@ export const InternDashboard: React.FC = () => {
         };
       });
 
-      // Filter to show orders that have available tasks or tasks assigned to current user
       const relevantOrders = transformedOrders.filter(order => 
         order.availableTasksCount > 0 || order.myTasksCount > 0
       );
@@ -116,7 +113,6 @@ export const InternDashboard: React.FC = () => {
     try {
       setSubmitting(orderId);
       
-      // Find an available task for this order
       const order = orders.find(o => o.id === orderId);
       const availableTask = order?.tasks.find(task => task.status === 'pending' && !task.intern_id);
       
@@ -135,7 +131,6 @@ export const InternDashboard: React.FC = () => {
 
       if (error) throw error;
 
-      // Refresh data
       await fetchOrdersWithTasks();
     } catch (error) {
       console.error('Error claiming task:', error);
@@ -167,7 +162,6 @@ export const InternDashboard: React.FC = () => {
     try {
       setSubmitting(orderId);
       
-      // Find the user's assigned task for this order
       const order = orders.find(o => o.id === orderId);
       const myTask = order?.tasks.find(task => task.intern_id === user.id && task.status === 'assigned');
       
@@ -175,7 +169,6 @@ export const InternDashboard: React.FC = () => {
         throw new Error('No assigned task found for this order');
       }
 
-      // Upload screenshot
       const fileName = `${myTask.id}/${Date.now()}-proof.png`;
       const { error: uploadError } = await supabase.storage
         .from('review-proofs')
@@ -183,12 +176,10 @@ export const InternDashboard: React.FC = () => {
       
       if (uploadError) throw uploadError;
       
-      // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('review-proofs')
         .getPublicUrl(fileName);
       
-      // Create proof record
       const { error: proofError } = await supabase
         .from('review_proofs')
         .insert({
@@ -200,7 +191,6 @@ export const InternDashboard: React.FC = () => {
       
       if (proofError) throw proofError;
       
-      // Update task status
       const { error: taskError } = await supabase
         .from('review_tasks')
         .update({ 
@@ -211,7 +201,6 @@ export const InternDashboard: React.FC = () => {
       
       if (taskError) throw taskError;
 
-      // Update order completed_reviews count
       const { error: orderError } = await supabase
         .from('orders')
         .update({
@@ -222,14 +211,12 @@ export const InternDashboard: React.FC = () => {
 
       if (orderError) throw orderError;
       
-      // Clear submission data
       setSubmissions(prev => {
         const newSubmissions = { ...prev };
         delete newSubmissions[orderId];
         return newSubmissions;
       });
       
-      // Refresh data
       await fetchOrdersWithTasks();
     } catch (error) {
       console.error('Error submitting proof:', error);
@@ -264,30 +251,34 @@ export const InternDashboard: React.FC = () => {
     { 
       label: 'Available Tasks', 
       value: getTotalAvailableTasks().toString(), 
-      icon: <Star className="h-6 w-6 text-purple-500" />,
-      color: 'bg-purple-50',
-      change: 'Ready to claim'
+      icon: <Star className="h-6 w-6 text-white" />,
+      color: 'from-purple-500 to-indigo-500',
+      change: 'Ready to claim',
+      potential: `$${(getTotalAvailableTasks() * 5).toFixed(2)} potential`
     },
     { 
       label: 'Active Tasks', 
       value: getMyActiveTasks().toString(), 
-      icon: <Clock className="h-6 w-6 text-yellow-500" />,
-      color: 'bg-yellow-50',
-      change: 'In progress'
+      icon: <Clock className="h-6 w-6 text-white" />,
+      color: 'from-yellow-500 to-orange-500',
+      change: 'In progress',
+      potential: 'Complete to earn'
     },
     { 
       label: 'Pending Earnings', 
       value: `$${getMyEarnings().toFixed(2)}`, 
-      icon: <DollarSign className="h-6 w-6 text-green-500" />,
-      color: 'bg-green-50',
-      change: 'Awaiting approval'
+      icon: <DollarSign className="h-6 w-6 text-white" />,
+      color: 'from-green-500 to-emerald-500',
+      change: 'Awaiting approval',
+      potential: 'Processing payout'
     },
     { 
       label: 'Success Rate', 
       value: '98%', 
-      icon: <TrendingUp className="h-6 w-6 text-blue-500" />,
-      color: 'bg-blue-50',
-      change: 'Excellent performance'
+      icon: <TrendingUp className="h-6 w-6 text-white" />,
+      color: 'from-blue-500 to-cyan-500',
+      change: 'Excellent performance',
+      potential: 'Top performer'
     },
   ];
 
@@ -303,23 +294,38 @@ export const InternDashboard: React.FC = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-8">
         {/* Welcome Section with Earnings Focus */}
-        <div className="bg-gradient-to-r from-green-600 via-blue-600 to-purple-600 rounded-xl p-8 text-white relative overflow-hidden">
+        <div className="bg-gradient-to-r from-green-600 via-blue-600 to-purple-600 rounded-2xl p-8 text-white relative overflow-hidden shadow-2xl">
           <div className="absolute inset-0 bg-black opacity-10"></div>
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full -mr-32 -mt-32"></div>
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-white opacity-5 rounded-full -ml-24 -mb-24"></div>
           <div className="relative z-10">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold mb-2">💰 Ready to Earn, {user?.name?.split(' ')[0]}?</h1>
-                <p className="text-green-100 text-lg">Turn your reviews into real money • Quick tasks • Instant payouts</p>
+                <h1 className="text-4xl font-bold mb-3 flex items-center">
+                  💰 Ready to Earn, {user?.name?.split(' ')[0]}?
+                  <Coins className="ml-3 h-8 w-8 animate-bounce" />
+                </h1>
+                <p className="text-green-100 text-xl mb-4">Turn your reviews into real money • Quick tasks • Instant payouts</p>
+                <div className="flex items-center space-x-6">
+                  <div className="flex items-center">
+                    <Trophy className="h-5 w-5 mr-2" />
+                    <span className="text-sm">Top 5% performer</span>
+                  </div>
+                  <div className="flex items-center">
+                    <Zap className="h-5 w-5 mr-2" />
+                    <span className="text-sm">Fast payouts</span>
+                  </div>
+                </div>
               </div>
               <div className="hidden md:flex items-center space-x-6">
-                <div className="text-center bg-white bg-opacity-20 rounded-lg p-4">
-                  <div className="text-2xl font-bold">${getMyEarnings().toFixed(2)}</div>
+                <div className="text-center bg-white bg-opacity-20 rounded-xl p-4 backdrop-blur-sm">
+                  <div className="text-3xl font-bold">${getMyEarnings().toFixed(2)}</div>
                   <div className="text-sm text-green-100">Pending</div>
                 </div>
-                <div className="text-center bg-white bg-opacity-20 rounded-lg p-4">
-                  <div className="text-2xl font-bold">{getTotalAvailableTasks()}</div>
+                <div className="text-center bg-white bg-opacity-20 rounded-xl p-4 backdrop-blur-sm">
+                  <div className="text-3xl font-bold">{getTotalAvailableTasks()}</div>
                   <div className="text-sm text-green-100">Available</div>
                 </div>
               </div>
@@ -336,16 +342,17 @@ export const InternDashboard: React.FC = () => {
         {/* Stats Grid */}
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {stats.map((stat, index) => (
-            <Card key={index} className="hover:shadow-lg transition-all duration-200 border-l-4 border-l-blue-500">
+            <Card key={index} className="hover:shadow-xl transition-all duration-300 border-0 shadow-lg group">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
-                  <div className={`p-3 rounded-full ${stat.color}`}>
+                  <div className={`p-4 rounded-xl bg-gradient-to-r ${stat.color} shadow-lg group-hover:scale-110 transition-transform`}>
                     {stat.icon}
                   </div>
                   <div className="text-right">
-                    <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+                    <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
                     <p className="text-sm font-medium text-gray-500">{stat.label}</p>
                     <p className="text-xs text-gray-400 mt-1">{stat.change}</p>
+                    <p className="text-xs font-medium text-green-600 mt-1">{stat.potential}</p>
                   </div>
                 </div>
               </CardContent>
@@ -355,20 +362,20 @@ export const InternDashboard: React.FC = () => {
 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="bg-gradient-to-br from-green-50 to-emerald-100 border-green-200 hover:shadow-lg transition-all">
+          <Card className="bg-gradient-to-br from-green-50 to-emerald-100 border-green-200 hover:shadow-xl transition-all group">
             <CardContent className="p-6 text-center">
-              <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform shadow-lg">
                 <DollarSign className="h-8 w-8 text-white" />
               </div>
               <h3 className="text-lg font-bold text-green-800 mb-2">Start Earning Now</h3>
               <p className="text-sm text-green-600 mb-4">Claim tasks and start making money immediately</p>
-              <div className="text-2xl font-bold text-green-700 mb-2">${getTotalAvailableTasks() * 5} potential</div>
+              <div className="text-2xl font-bold text-green-700 mb-2">${(getTotalAvailableTasks() * 5).toFixed(2)} potential</div>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-blue-50 to-indigo-100 border-blue-200 hover:shadow-lg transition-all">
+          <Card className="bg-gradient-to-br from-blue-50 to-indigo-100 border-blue-200 hover:shadow-xl transition-all group">
             <CardContent className="p-6 text-center">
-              <div className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform shadow-lg">
                 <Target className="h-8 w-8 text-white" />
               </div>
               <h3 className="text-lg font-bold text-blue-800 mb-2">Track Progress</h3>
@@ -377,9 +384,9 @@ export const InternDashboard: React.FC = () => {
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-purple-50 to-violet-100 border-purple-200 hover:shadow-lg transition-all">
+          <Card className="bg-gradient-to-br from-purple-50 to-violet-100 border-purple-200 hover:shadow-xl transition-all group">
             <CardContent className="p-6 text-center">
-              <div className="w-16 h-16 bg-purple-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-violet-500 rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform shadow-lg">
                 <Award className="h-8 w-8 text-white" />
               </div>
               <h3 className="text-lg font-bold text-purple-800 mb-2">Quality Bonus</h3>
@@ -392,7 +399,7 @@ export const InternDashboard: React.FC = () => {
         {/* Available Orders */}
         <div>
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">💼 Available Orders</h2>
+            <h2 className="text-3xl font-bold text-gray-900">💼 Available Orders</h2>
             <div className="text-sm text-gray-500">
               {orders.length} orders • {getTotalAvailableTasks()} tasks available
             </div>
@@ -404,14 +411,15 @@ export const InternDashboard: React.FC = () => {
                 const myTask = order.tasks.find(task => task.intern_id === user?.id && task.status === 'assigned');
                 const hasAvailableTasks = order.availableTasksCount > 0;
                 const submission = submissions[order.id];
+                const completedTasks = order.tasks.filter(task => task.intern_id === user?.id && task.status === 'submitted').length;
                 
                 return (
-                  <Card key={order.id} className="hover:shadow-lg transition-all duration-200 border-l-4 border-l-green-500">
+                  <Card key={order.id} className="hover:shadow-xl transition-all duration-300 border-0 shadow-lg">
                     <CardHeader className="pb-4">
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
-                          <CardTitle className="text-xl text-gray-900 mb-2">{order.business_name}</CardTitle>
-                          <div className="flex items-center text-sm text-gray-500 mb-3">
+                          <CardTitle className="text-2xl text-gray-900 mb-2">{order.business_name}</CardTitle>
+                          <div className="flex items-center text-sm text-gray-500 mb-4">
                             <MapPin size={14} className="mr-1" />
                             <a 
                               href={order.business_url} 
@@ -424,20 +432,20 @@ export const InternDashboard: React.FC = () => {
                           </div>
                           
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                            <div className="text-center p-3 bg-blue-50 rounded-lg">
-                              <div className="text-lg font-bold text-blue-600">{order.availableTasksCount}</div>
+                            <div className="text-center p-4 bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl border border-blue-200">
+                              <div className="text-xl font-bold text-blue-600">{order.availableTasksCount}</div>
                               <div className="text-xs text-blue-500">Available</div>
                             </div>
-                            <div className="text-center p-3 bg-green-50 rounded-lg">
-                              <div className="text-lg font-bold text-green-600">${(order.totalCommission / order.total_reviews).toFixed(2)}</div>
+                            <div className="text-center p-4 bg-gradient-to-r from-green-50 to-green-100 rounded-xl border border-green-200">
+                              <div className="text-xl font-bold text-green-600">${(order.totalCommission / order.total_reviews).toFixed(2)}</div>
                               <div className="text-xs text-green-500">Per Review</div>
                             </div>
-                            <div className="text-center p-3 bg-purple-50 rounded-lg">
-                              <div className="text-lg font-bold text-purple-600">{order.myTasksCount}</div>
+                            <div className="text-center p-4 bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl border border-purple-200">
+                              <div className="text-xl font-bold text-purple-600">{order.myTasksCount}</div>
                               <div className="text-xs text-purple-500">My Tasks</div>
                             </div>
-                            <div className="text-center p-3 bg-yellow-50 rounded-lg">
-                              <div className="text-lg font-bold text-yellow-600">${(order.myTasksCount * (order.totalCommission / order.total_reviews)).toFixed(2)}</div>
+                            <div className="text-center p-4 bg-gradient-to-r from-yellow-50 to-yellow-100 rounded-xl border border-yellow-200">
+                              <div className="text-xl font-bold text-yellow-600">${(order.myTasksCount * (order.totalCommission / order.total_reviews)).toFixed(2)}</div>
                               <div className="text-xs text-yellow-500">My Earnings</div>
                             </div>
                           </div>
@@ -449,15 +457,15 @@ export const InternDashboard: React.FC = () => {
                     <CardContent>
                       <div className="space-y-4">
                         <ProgressBar
-                          value={order.completed_reviews}
-                          max={order.total_reviews}
+                          value={completedTasks}
+                          max={order.myTasksCount || 1}
                           showValue
-                          label="Overall Progress"
-                          variant="primary"
+                          label={`My Progress (${completedTasks} / ${order.myTasksCount} completed)`}
+                          variant="success"
                         />
                         
                         {myTask && (
-                          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                          <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-xl p-6">
                             <h4 className="font-medium text-yellow-800 mb-3 flex items-center">
                               <Clock className="h-4 w-4 mr-2" />
                               You have an active task for this order
@@ -503,8 +511,9 @@ export const InternDashboard: React.FC = () => {
                                 leftIcon={<Upload size={16} />}
                                 disabled={!submission?.screenshot || !submission?.reviewContent}
                                 fullWidth
+                                className="shadow-lg"
                               >
-                                Submit Proof & Earn ${myTask.commission.toFixed(2)}
+                                Submit Proof & Earn ${myTask.commission.toFixed(2)} 💰
                               </Button>
                             </div>
                           </div>
@@ -526,8 +535,9 @@ export const InternDashboard: React.FC = () => {
                               onClick={() => handleClaimTask(order.id)}
                               isLoading={submitting === order.id}
                               leftIcon={<DollarSign size={16} />}
+                              className="shadow-lg"
                             >
-                              Claim Task • Earn ${(order.totalCommission / order.total_reviews).toFixed(2)}
+                              Claim Task • Earn ${(order.totalCommission / order.total_reviews).toFixed(2)} 💰
                             </Button>
                           )}
                         </div>
@@ -538,9 +548,11 @@ export const InternDashboard: React.FC = () => {
               })}
             </div>
           ) : (
-            <Card className="bg-gray-50 border-gray-200">
+            <Card className="bg-gradient-to-br from-gray-50 to-blue-50 border-gray-200 shadow-lg">
               <CardContent className="p-12 text-center">
-                <Star className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+                  <Star className="h-10 w-10 text-white" />
+                </div>
                 <h3 className="text-xl font-medium text-gray-600 mb-2">No Orders Available</h3>
                 <p className="text-gray-500">Check back soon for new earning opportunities!</p>
               </CardContent>
@@ -549,7 +561,7 @@ export const InternDashboard: React.FC = () => {
         </div>
         
         {/* Guidelines */}
-        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 shadow-lg">
           <CardHeader>
             <CardTitle className="text-blue-800 flex items-center">
               <Star className="mr-2 h-5 w-5" />
